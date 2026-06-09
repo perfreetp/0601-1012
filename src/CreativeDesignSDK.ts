@@ -336,6 +336,22 @@ export class CreativeDesignSDK {
     this.notifyPreview();
   }
 
+  commitElementUpdate(
+    id: string,
+    previousSnapshot: DesignElement,
+    changes: Partial<DesignElement>
+  ): void {
+    if (!this.project) return;
+    const idx = this.project.canvas.elements.findIndex((e) => e.id === id);
+    if (idx === -1) return;
+    const updated = { ...this.project.canvas.elements[idx], ...changes } as DesignElement;
+    this.project.canvas.elements[idx] = updated;
+    this.project.updatedAt = Date.now();
+    this.historyManager.recordElementUpdate(this.currentUserId, previousSnapshot, updated);
+    this.emit('element:updated', { element: updated, changes });
+    this.notifyPreview();
+  }
+
   deleteElement(id: string): void {
     if (!this.project) return;
     const idx = this.project.canvas.elements.findIndex((e) => e.id === id);

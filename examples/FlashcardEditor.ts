@@ -4,8 +4,9 @@ import {
   QuestionCardElement,
   QuestionType,
   QuestionOption,
+  DesignElement,
 } from '../src';
-import { generateId } from '../src/utils';
+import { deepClone, generateId } from '../src/utils';
 
 export interface FlashcardEditorOptions {
   container: HTMLElement;
@@ -20,6 +21,7 @@ export class FlashcardEditor {
   private options: FlashcardEditorOptions;
   private editorEl: HTMLElement | null = null;
   private debounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private editSnapshots: Map<string, DesignElement> = new Map();
 
   constructor(options: FlashcardEditorOptions) {
     this.options = options;
@@ -45,6 +47,18 @@ export class FlashcardEditor {
     this.debounceTimers.set(key, t);
   }
 
+  private beginEditSnapshot(key: string, element: DesignElement): void {
+    if (!this.editSnapshots.has(key)) {
+      this.editSnapshots.set(key, deepClone(element));
+    }
+  }
+
+  private takeEditSnapshot(key: string): DesignElement | null {
+    const snap = this.editSnapshots.get(key) || null;
+    this.editSnapshots.delete(key);
+    return snap;
+  }
+
   private scheduleCommit(key: string, commit: () => void): void {
     this.debounce(key, commit, 500);
   }
@@ -52,9 +66,21 @@ export class FlashcardEditor {
   private flushPendingCommits(): void {
     this.debounceTimers.forEach((t) => clearTimeout(t));
     this.debounceTimers.clear();
+
     const qc = this.getQuestionCardElement();
-    if (qc) {
-      this.sdk.updateElement(qc.id, {
+    if (!qc) {
+      this.editSnapshots.clear();
+      return;
+    }
+
+    const pendingKeys = Array.from(this.editSnapshots.keys());
+    if (pendingKeys.length === 0) return;
+
+    const baseSnapshot = this.takeEditSnapshot(pendingKeys[0]);
+    pendingKeys.slice(1).forEach((k) => this.takeEditSnapshot(k));
+
+    if (baseSnapshot) {
+      this.sdk.commitElementUpdate(qc.id, baseSnapshot, {
         questionContent: qc.questionContent,
         explanation: qc.explanation,
         options: qc.options,
@@ -67,6 +93,7 @@ export class FlashcardEditor {
   destroy(): void {
     this.debounceTimers.forEach((t) => clearTimeout(t));
     this.debounceTimers.clear();
+    this.editSnapshots.clear();
     this.sdk.dispose();
     if (this.editorEl && this.editorEl.parentNode) {
       this.editorEl.parentNode.removeChild(this.editorEl);
@@ -287,20 +314,30 @@ export class FlashcardEditor {
   private updateQuestionContent(content: string): void {
     const qc = this.getQuestionCardElement();
     if (!qc) return;
+    const key = `qc_${qc.id}_question`;
+    this.beginEditSnapshot(key, qc);
     this.sdk.updateElementSilent(qc.id, { questionContent: content } as any);
-    this.scheduleCommit(`qc_${qc.id}_question`, () => {
+    this.scheduleCommit(key, () => {
+      const snap = this.takeEditSnapshot(key);
       const latest = this.getQuestionCardElement();
-      if (latest) this.sdk.updateElement(latest.id, { questionContent: latest.questionContent } as any);
+      if (snap && latest) {
+        this.sdk.commitElementUpdate(latest.id, snap, { questionContent: latest.questionContent } as any);
+      }
     });
   }
 
   private updateExplanation(explanation: string): void {
     const qc = this.getQuestionCardElement();
     if (!qc) return;
+    const key = `qc_${qc.id}_explanation`;
+    this.beginEditSnapshot(key, qc);
     this.sdk.updateElementSilent(qc.id, { explanation } as any);
-    this.scheduleCommit(`qc_${qc.id}_explanation`, () => {
+    this.scheduleCommit(key, () => {
+      const snap = this.takeEditSnapshot(key);
       const latest = this.getQuestionCardElement();
-      if (latest) this.sdk.updateElement(latest.id, { explanation: latest.explanation } as any);
+      if (snap && latest) {
+        this.sdk.commitElementUpdate(latest.id, snap, { explanation: latest.explanation } as any);
+      }
     });
   }
 
@@ -331,22 +368,32 @@ export class FlashcardEditor {
   private updateMatchingPair(pairId: string, field: 'left' | 'right', value: string): void {
     const qc = this.getQuestionCardElement();
     if (!qc) return;
+    const key = `qc_${qc.id}_pair_${pairId}_${field}`;
+    this.beginEditSnapshot(key, qc);
     const updated = this.sdk.questionCards.updateMatchingPair(qc, pairId, { [field]: value });
     this.sdk.updateElementSilent(qc.id, updated as any);
-    this.scheduleCommit(`qc_${qc.id}_pair_${pairId}_${field}`, () => {
+    this.scheduleCommit(key, () => {
+      const snap = this.takeEditSnapshot(key);
       const latest = this.getQuestionCardElement();
-      if (latest) this.sdk.updateElement(latest.id, { matchingPairs: latest.matchingPairs } as any);
+      if (snap && latest) {
+        this.sdk.commitElementUpdate(latest.id, snap, { matchingPairs: latest.matchingPairs } as any);
+      }
     });
   }
 
   private setCorrectAnswerText(text: string): void {
     const qc = this.getQuestionCardElement();
     if (!qc) return;
+    const key = `qc_${qc.id}_answer`;
+    this.beginEditSnapshot(key, qc);
     const updated = this.sdk.questionCards.setCorrectAnswerText(qc, text);
     this.sdk.updateElementSilent(qc.id, updated as any);
-    this.scheduleCommit(`qc_${qc.id}_answer`, () => {
+    this.scheduleCommit(key, () => {
+      const snap = this.takeEditSnapshot(key);
       const latest = this.getQuestionCardElement();
-      if (latest) this.sdk.updateElement(latest.id, { correctAnswer: latest.correctAnswer } as any);
+      if (snap && latest) {
+        this.sdk.commitElementUpdate(latest.id, snap, { correctAnswer: latest.correctAnswer } as any);
+      }
     });
   }
 
@@ -361,11 +408,16 @@ export class FlashcardEditor {
   private updateOptionContent(optionId: string, content: string): void {
     const qc = this.getQuestionCardElement();
     if (!qc) return;
+    const key = `qc_${qc.id}_opt_${optionId}`;
+    this.beginEditSnapshot(key, qc);
     const updated = this.sdk.questionCards.updateOptionContent(qc, optionId, content);
     this.sdk.updateElementSilent(qc.id, updated as any);
-    this.scheduleCommit(`qc_${qc.id}_opt_${optionId}`, () => {
+    this.scheduleCommit(key, () => {
+      const snap = this.takeEditSnapshot(key);
       const latest = this.getQuestionCardElement();
-      if (latest) this.sdk.updateElement(latest.id, { options: latest.options } as any);
+      if (snap && latest) {
+        this.sdk.commitElementUpdate(latest.id, snap, { options: latest.options } as any);
+      }
     });
   }
 

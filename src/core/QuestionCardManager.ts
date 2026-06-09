@@ -234,9 +234,10 @@ export class QuestionCardManager {
           { id: fId, label: 'F', content: '错误', isCorrect: false },
         ];
         cloned.correctAnswer = tId;
+        cloned.matchingPairs = undefined;
         break;
       }
-      case 'single_choice':
+      case 'single_choice': {
         if (!cloned.options || cloned.options.length === 0) {
           cloned.options = [
             { id: generateId('opt'), label: 'A', content: '选项A', isCorrect: true },
@@ -246,10 +247,18 @@ export class QuestionCardManager {
           ];
           cloned.correctAnswer = cloned.options[0].id;
         } else {
-          cloned.correctAnswer = cloned.options.find((o) => o.isCorrect)?.id || cloned.options[0].id;
+          const correctOpts = cloned.options.filter((o) => o.isCorrect);
+          const firstCorrect = correctOpts[0] || cloned.options[0];
+          cloned.options = cloned.options.map((o) => ({
+            ...o,
+            isCorrect: o.id === firstCorrect.id,
+          }));
+          cloned.correctAnswer = firstCorrect.id;
         }
+        cloned.matchingPairs = undefined;
         break;
-      case 'multiple_choice':
+      }
+      case 'multiple_choice': {
         if (!cloned.options || cloned.options.length === 0) {
           cloned.options = [
             { id: generateId('opt'), label: 'A', content: '选项A', isCorrect: true },
@@ -261,11 +270,14 @@ export class QuestionCardManager {
         } else {
           cloned.correctAnswer = cloned.options.filter((o) => o.isCorrect).map((o) => o.id);
         }
+        cloned.matchingPairs = undefined;
         break;
+      }
       case 'fill_blank':
       case 'short_answer':
         cloned.options = [];
-        cloned.correctAnswer = (cloned.correctAnswer as string) || '';
+        cloned.matchingPairs = undefined;
+        cloned.correctAnswer = '';
         break;
       case 'matching':
         cloned.options = [];

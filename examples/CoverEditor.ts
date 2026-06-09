@@ -5,8 +5,9 @@ import {
   SizePreset,
   ThemePreset,
   TextElement,
+  DesignElement,
 } from '../src';
-import { generateElementId } from '../src/utils';
+import { deepClone, generateElementId } from '../src/utils';
 
 export interface CoverEditorOptions {
   container: HTMLElement;
@@ -21,6 +22,7 @@ export class CoverEditor {
   private options: CoverEditorOptions;
   private editorEl: HTMLElement | null = null;
   private debounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private editSnapshots: Map<string, DesignElement> = new Map();
 
   constructor(options: CoverEditorOptions) {
     this.options = options;
@@ -42,6 +44,18 @@ export class CoverEditor {
     this.debounceTimers.set(key, t);
   }
 
+  private beginEditSnapshot(key: string, element: DesignElement): void {
+    if (!this.editSnapshots.has(key)) {
+      this.editSnapshots.set(key, deepClone(element));
+    }
+  }
+
+  private takeEditSnapshot(key: string): DesignElement | null {
+    const snap = this.editSnapshots.get(key) || null;
+    this.editSnapshots.delete(key);
+    return snap;
+  }
+
   private scheduleCommit(key: string, commit: () => void): void {
     this.debounce(key, commit, 500);
   }
@@ -49,15 +63,22 @@ export class CoverEditor {
   private flushPendingCommits(): void {
     this.debounceTimers.forEach((t) => clearTimeout(t));
     this.debounceTimers.clear();
-    const textElements = this.sdk.getElements().filter((e) => e.type === 'text') as TextElement[];
-    textElements.forEach((el) => {
-      this.sdk.updateElement(el.id, { content: el.content } as any);
+
+    const pendingKeys = Array.from(this.editSnapshots.keys());
+    pendingKeys.forEach((key) => {
+      const snap = this.takeEditSnapshot(key);
+      const elId = key.split('|')[0];
+      const el = this.sdk.getElement(elId) as TextElement | undefined;
+      if (snap && el) {
+        this.sdk.commitElementUpdate(el.id, snap, { content: el.content } as any);
+      }
     });
   }
 
   destroy(): void {
     this.debounceTimers.forEach((t) => clearTimeout(t));
     this.debounceTimers.clear();
+    this.editSnapshots.clear();
     this.sdk.dispose();
     if (this.editorEl && this.editorEl.parentNode) {
       this.editorEl.parentNode.removeChild(this.editorEl);
@@ -252,10 +273,16 @@ export class CoverEditor {
   private updateTextElement(index: number, content: string): void {
     const elements = this.sdk.getElements().filter((e) => e.type === 'text') as TextElement[];
     if (!elements[index]) return;
-    this.sdk.updateElementSilent(elements[index].id, { content } as any);
-    this.scheduleCommit(`text_${elements[index].id}`, () => {
-      const latest = this.sdk.getElement(elements[index].id);
-      if (latest) this.sdk.updateElement(latest.id, { content: (latest as TextElement).content } as any);
+    const el = elements[index];
+    const key = `${el.id}|text`;
+    this.beginEditSnapshot(key, el);
+    this.sdk.updateElementSilent(el.id, { content } as any);
+    this.scheduleCommit(key, () => {
+      const snap = this.takeEditSnapshot(key);
+      const latest = this.sdk.getElement(el.id) as TextElement | undefined;
+      if (snap && latest) {
+        this.sdk.commitElementUpdate(latest.id, snap, { content: latest.content } as any);
+      }
     });
   }
 
