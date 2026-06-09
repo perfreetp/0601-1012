@@ -59,7 +59,7 @@ export class ExportManager {
       case 'svg':
         return this.exportToSvgBlob(project, options);
       case 'pdf':
-        return this.exportToPdfBlob(project, options);
+        throw new Error('PDF 格式导出暂不支持，请使用 PNG、JPG 或 SVG 格式。如需导出 PDF，建议先导出为 PNG 图片后转换。');
       default:
         mimeType = 'image/png';
     }
@@ -111,6 +111,7 @@ export class ExportManager {
     const extMap: Record<ExportFormat, string> = {
       png: 'png',
       jpg: 'jpg',
+      jpeg: 'jpg',
       svg: 'svg',
       pdf: 'pdf',
     };
@@ -386,133 +387,43 @@ export class ExportManager {
     return new Blob([svgContent], { type: 'image/svg+xml' });
   }
 
+  private escapeXml(str: string): string {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
+
   private generateSvg(project: DesignProject, width: number, height: number): string {
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`;
-    svg += `<rect width="100%" height="100%" fill="${project.canvas.backgroundColor}"/>`;
+    svg += `<rect width="100%" height="100%" fill="${this.escapeXml(project.canvas.backgroundColor)}"/>`;
 
     const sorted = [...project.canvas.elements].sort(
       (a, b) => (a.zIndex || 0) - (b.zIndex || 0)
     );
 
     sorted.forEach((el) => {
+      if (el.visible === false) return;
       if (el.type === 'text') {
         const t = el as any;
-        svg += `<text x="${t.x}" y="${t.y + t.style.fontSize}" font-family="${t.style.fontFamily}" font-size="${t.style.fontSize}" font-weight="${t.style.fontWeight}" fill="${t.style.color}">${t.content}</text>`;
+        svg += `<text x="${t.x}" y="${t.y + t.style.fontSize}" font-family="${this.escapeXml(t.style.fontFamily)}" font-size="${t.style.fontSize}" font-weight="${t.style.fontWeight}" fill="${this.escapeXml(t.style.color)}">${this.escapeXml(t.content)}</text>`;
       } else if (el.type === 'shape') {
         const s = el as any;
         if (s.shape === 'rectangle') {
-          svg += `<rect x="${s.x}" y="${s.y}" width="${s.width}" height="${s.height}" fill="${s.fill || 'none'}" stroke="${s.stroke || 'none'}" stroke-width="${s.strokeWidth || 0}" rx="${s.borderRadius || 0}"/>`;
+          svg += `<rect x="${s.x}" y="${s.y}" width="${s.width}" height="${s.height}" fill="${this.escapeXml(s.fill || 'none')}" stroke="${this.escapeXml(s.stroke || 'none')}" stroke-width="${s.strokeWidth || 0}" rx="${s.borderRadius || 0}"/>`;
         } else if (s.shape === 'circle') {
-          svg += `<circle cx="${s.x + s.width / 2}" cy="${s.y + s.height / 2}" r="${Math.min(s.width, s.height) / 2}" fill="${s.fill || 'none'}" stroke="${s.stroke || 'none'}" stroke-width="${s.strokeWidth || 0}"/>`;
+          svg += `<circle cx="${s.x + s.width / 2}" cy="${s.y + s.height / 2}" r="${Math.min(s.width, s.height) / 2}" fill="${this.escapeXml(s.fill || 'none')}" stroke="${this.escapeXml(s.stroke || 'none')}" stroke-width="${s.strokeWidth || 0}"/>`;
         }
+      } else if (el.type === 'image') {
+        const img = el as any;
+        svg += `<image x="${img.x}" y="${img.y}" width="${img.width}" height="${img.height}" href="${this.escapeXml(img.src)}" preserveAspectRatio="xMidYMid slice"/>`;
       }
     });
 
     svg += '</svg>';
     return svg;
-  }
-
-  private async exportToPdfBlob(
-    project: DesignProject,
-    options: ExportOptions
-  ): Promise<Blob> {
-    const { width, height } = convertSizeToPx(project.canvas.size);
-    const scale = options.scale || 2;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = width * scale;
-    canvas.height = height * scale;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Canvas context not available');
-
-    ctx.scale(scale, scale);
-    ctx.fillStyle = project.canvas.backgroundColor;
-    ctx.fillRect(0, 0, width, height);
-
-    const sorted = [...project.canvas.elements].sort(
-      (a, b) => (a.zIndex || 0) - (b.zIndex || 0)
-    );
-    for (const el of sorted) {
-      await this.drawElement(ctx, el as any, project);
-    }
-
-    if (project.watermark?.enabled && options.includeWatermark !== false) {
-      this.drawWatermark(ctx, project.watermark, width, height);
-    }
-
-    const dataUrl = canvas.toDataURL('image/png');
-    const pdfContent = this.generateSimplePdf(dataUrl, width, height);
-    return new Blob([pdfContent], { type: 'application/pdf' });
-  }
-
-  private generateSimplePdf(imageDataUrl: string, width: number, height: number): Uint8Array {
-    const imgHeader = imageDataUrl.split(',')[0];
-    const imgData = imageDataUrl.split(',')[1];
-    const imgBytes = Uint8Array.from(atob(imgData), (c) => c.charCodeAt(0));
-
-    const pdfWidth = (width * 72) / 96;
-    const pdfHeight = (height * 72) / 96;
-
-    const content = `%PDF-1.4
-1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
-endobj
-2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
-endobj
-3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pdfWidth} ${pdfHeight}] /Resources << /XObject << /Im1 4 0 R >> >> /Contents 5 0 R >>
-endobj
-4 0 obj
-<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imgBytes.length} >>
-stream
-`;
-
-    const contentBytes = new TextEncoder().encode(content);
-    const streamEndBytes = new TextEncoder().encode('\nendstream\nendobj\n');
-    const pageContent = `5 0 obj
-<< /Length 44 >>
-stream
-q
-${pdfWidth} 0 0 ${pdfHeight} 0 0 cm
-/Im1 Do
-Q
-endstream
-endobj
-xref
-0 6
-0000000000 65535 f 
-0000000009 00000 n 
-0000000058 00000 n 
-0000000109 00000 n 
-0000000222 00000 n 
-`;
-    const pageContentBytes = new TextEncoder().encode(pageContent);
-
-    const totalLen = contentBytes.length + imgBytes.length + streamEndBytes.length + pageContentBytes.length;
-    const xrefPos = contentBytes.length + imgBytes.length + streamEndBytes.length;
-
-    const trailer = `0000000000 00000 n 
-trailer
-<< /Size 6 /Root 1 0 R >>
-startxref
-${xrefPos + pageContentBytes.length - 44}
-%%EOF`;
-    const trailerBytes = new TextEncoder().encode(trailer);
-
-    const result = new Uint8Array(totalLen + trailerBytes.length);
-    let offset = 0;
-    result.set(contentBytes, offset);
-    offset += contentBytes.length;
-    result.set(imgBytes, offset);
-    offset += imgBytes.length;
-    result.set(streamEndBytes, offset);
-    offset += streamEndBytes.length;
-    result.set(pageContentBytes, offset);
-    offset += pageContentBytes.length;
-    result.set(trailerBytes, offset);
-
-    return result;
   }
 
   private blobToDataUrl(blob: Blob): Promise<string> {

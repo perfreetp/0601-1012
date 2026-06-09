@@ -114,7 +114,7 @@ export class PreviewExport {
     const zoomOut = this.container.querySelector('#cd-zoom-out') as HTMLButtonElement;
     const zoomFit = this.container.querySelector('#cd-zoom-fit') as HTMLButtonElement;
 
-    zoomIn.addEventListener('click', () => this.zoom(Math.min(this.previewScale + 0.25, 2));
+    zoomIn.addEventListener('click', () => this.zoom(Math.min(this.previewScale + 0.25, 2)));
     zoomOut.addEventListener('click', () => this.zoom(Math.max(this.previewScale - 0.25, 0.25)));
     zoomFit.addEventListener('click', () => this.zoom(0.5));
 
@@ -204,7 +204,7 @@ export class PreviewExport {
         this.options.onExport(url, exportOptions);
       }
     } catch (e) {
-      alert('导出失败: ' + (e instanceof Error ? e.message : String(e));
+      alert('导出失败: ' + (e instanceof Error ? e.message : String(e)));
     }
   }
 

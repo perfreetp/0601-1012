@@ -1,60 +1,15 @@
-import {
-  SizeConfig,
-  SizePreset,
-  SizePresetConfig,
-  ColorTheme,
-  ThemePreset,
-} from './size';
-import {
-  BaseElement,
-  DesignElement,
-  TextElement,
-  ImageElement,
-  ShapeElement,
-  IllustrationElement,
-  QuestionCardElement,
-  TextStyle,
-  ImageCropConfig,
-  ImageFilter,
-  QuestionType,
-  QuestionOption,
-  QuestionCardStyle,
-  IllustrationAsset,
-} from './elements';
-import {
-  Template,
-  TemplateCategory,
-  TemplateFilter,
-} from './template';
-import {
-  DesignProject,
-  DesignCanvas,
-  DesignVersion,
-  ExportFormat,
-  ExportOptions,
-  ValidationResult,
-  ValidationError,
-  ValidationWarning,
-  BatchGenerateItem,
-  BatchGenerateResult,
-} from './project';
-import {
-  WatermarkConfig,
-  Collaborator,
-  CollaboratorRole,
-  Permission,
-  CopyrightInfo,
-  CopyrightTip,
-  CursorPosition,
-  HistoryAction,
-  HistoryState,
-} from './meta';
-
 export * from './size';
 export * from './elements';
 export * from './template';
 export * from './project';
 export * from './meta';
+export type { MaterialValidationRules } from '../core/MaterialValidator';
+
+import type { Template } from './template';
+import type { DesignElement } from './elements';
+import type { SizeConfig, ColorTheme } from './size';
+import type { DesignProject, DesignVersion, ExportOptions } from './project';
+import type { HistoryAction, Collaborator, CursorPosition, CopyrightTip } from './meta';
 
 export interface SDKConfig {
   apiBaseUrl?: string;
@@ -108,7 +63,7 @@ export interface SDKEventMap {
   'collaborator:left': string;
   'cursor:moved': CursorPosition;
   'copyright:warning': CopyrightTip[];
-  'error': { code: string; message: string; details?: any };
+  'error': { code: string; message: string; details?: unknown };
 }
 
 export type PreviewCallback = (project: DesignProject) => void;

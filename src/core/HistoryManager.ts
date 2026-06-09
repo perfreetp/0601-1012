@@ -174,10 +174,7 @@ export class HistoryManager {
     });
   }
 
-  applyUndoToProject(project: DesignProject): DesignProject {
-    const action = this.undo();
-    if (!action) return project;
-
+  applyUndoToProject(project: DesignProject, action: HistoryAction): DesignProject {
     const updated = deepClone(project);
 
     switch (action.type) {
@@ -188,9 +185,12 @@ export class HistoryManager {
         break;
       case 'update':
       case 'style':
-        updated.canvas.elements = updated.canvas.elements.map((e) =>
-          e.id === action.elementId ? action.previousState : e
-        );
+        if (action.previousState) {
+          const idx = updated.canvas.elements.findIndex((e) => e.id === action.elementId);
+          if (idx !== -1) {
+            updated.canvas.elements[idx] = action.previousState;
+          }
+        }
         break;
       case 'delete':
         if (action.previousState) {
@@ -221,10 +221,7 @@ export class HistoryManager {
     return updated;
   }
 
-  applyRedoToProject(project: DesignProject): DesignProject {
-    const action = this.redo();
-    if (!action) return project;
-
+  applyRedoToProject(project: DesignProject, action: HistoryAction): DesignProject {
     const updated = deepClone(project);
 
     switch (action.type) {
@@ -235,9 +232,12 @@ export class HistoryManager {
         break;
       case 'update':
       case 'style':
-        updated.canvas.elements = updated.canvas.elements.map((e) =>
-          e.id === action.elementId ? action.nextState : e
-        );
+        if (action.nextState) {
+          const idx = updated.canvas.elements.findIndex((e) => e.id === action.elementId);
+          if (idx !== -1) {
+            updated.canvas.elements[idx] = action.nextState;
+          }
+        }
         break;
       case 'delete':
         updated.canvas.elements = updated.canvas.elements.filter(

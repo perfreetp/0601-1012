@@ -143,7 +143,7 @@ export class QuestionCardManager {
     );
   }
 
-  private createQuestionCard(
+  createQuestionCard(
     questionType: QuestionType,
     questionContent: string,
     options: QuestionOption[],
@@ -184,6 +184,79 @@ export class QuestionCardManager {
       style,
       zIndex: 1,
     };
+  }
+
+  changeQuestionType(
+    element: QuestionCardElement,
+    newType: QuestionType,
+    theme?: ColorTheme
+  ): QuestionCardElement {
+    const cloned = deepClone(element);
+    cloned.questionType = newType;
+
+    switch (newType) {
+      case 'true_false':
+        cloned.options = [
+          { id: generateId('opt'), label: 'T', content: '正确', isCorrect: false },
+          { id: generateId('opt'), label: 'F', content: '错误', isCorrect: false },
+        ];
+        cloned.correctAnswer = cloned.options[0].id;
+        break;
+      case 'single_choice':
+        if (!cloned.options || cloned.options.length === 0) {
+          cloned.options = [
+            { id: generateId('opt'), label: 'A', content: '选项A', isCorrect: true },
+            { id: generateId('opt'), label: 'B', content: '选项B', isCorrect: false },
+            { id: generateId('opt'), label: 'C', content: '选项C', isCorrect: false },
+            { id: generateId('opt'), label: 'D', content: '选项D', isCorrect: false },
+          ];
+          cloned.correctAnswer = cloned.options[0].id;
+        } else {
+          cloned.correctAnswer = cloned.options.find((o) => o.isCorrect)?.id || cloned.options[0].id;
+        }
+        break;
+      case 'multiple_choice':
+        if (!cloned.options || cloned.options.length === 0) {
+          cloned.options = [
+            { id: generateId('opt'), label: 'A', content: '选项A', isCorrect: true },
+            { id: generateId('opt'), label: 'B', content: '选项B', isCorrect: true },
+            { id: generateId('opt'), label: 'C', content: '选项C', isCorrect: false },
+            { id: generateId('opt'), label: 'D', content: '选项D', isCorrect: false },
+          ];
+          cloned.correctAnswer = cloned.options.filter((o) => o.isCorrect).map((o) => o.id);
+        } else {
+          cloned.correctAnswer = cloned.options.filter((o) => o.isCorrect).map((o) => o.id);
+        }
+        break;
+      case 'fill_blank':
+      case 'short_answer':
+        cloned.options = [];
+        cloned.correctAnswer = (cloned.correctAnswer as string) || '';
+        break;
+      case 'matching':
+        cloned.options = [];
+        cloned.correctAnswer = '';
+        break;
+    }
+
+    if (theme) {
+      cloned.style = {
+        backgroundColor: theme.background,
+        borderColor: theme.border,
+        titleStyle: {
+          fontSize: 20,
+          fontWeight: 600,
+          color: theme.text,
+        },
+        optionStyle: {
+          fontSize: 16,
+          color: theme.textSecondary,
+        },
+        correctHighlightColor: theme.accent,
+      };
+    }
+
+    return cloned;
   }
 
   updateQuestion(element: QuestionCardElement, content: string): QuestionCardElement {

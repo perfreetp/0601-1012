@@ -106,7 +106,7 @@ const createFlashcardElements = (theme: ColorTheme, size: SizeConfig) => {
     height: size.height,
     shape: 'rectangle',
     fill: theme.background,
-    borderWidth: 2,
+    strokeWidth: 2,
     stroke: theme.border,
     borderRadius: 16,
     zIndex: 0,

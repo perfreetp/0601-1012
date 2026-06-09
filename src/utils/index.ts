@@ -1,4 +1,4 @@
-import { DesignElement, TextElement, ImageElement, ShapeElement, IllustrationElement, QuestionCardElement } from '../types';
+import type { DesignElement, TextElement, ImageElement, ShapeElement, IllustrationElement, QuestionCardElement } from '../types';
 
 export const generateId = (prefix: string = 'id'): string => {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;

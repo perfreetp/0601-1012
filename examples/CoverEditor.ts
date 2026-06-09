@@ -126,8 +126,8 @@ export class CoverEditor {
       .map(
         (p) => `
         <div class="cd-theme-item" data-id="${p}" style="width:100%;aspect-ratio:1;border-radius:6px;cursor:pointer;border:2px solid transparent;overflow:hidden;display:flex;">
-          <div style="flex:1;background:${this.sdk.getTheme(p).primary};"></div>
-          <div style="flex:1;background:${this.sdk.getTheme(p).accent};"></div>
+          <div style="flex:1;background:${this.sdk.getThemePreset(p).primary};"></div>
+          <div style="flex:1;background:${this.sdk.getThemePreset(p).accent};"></div>
         </div>
       `
       )

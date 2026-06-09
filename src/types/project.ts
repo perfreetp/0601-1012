@@ -34,7 +34,7 @@ export interface DesignVersion {
   tags?: string[];
 }
 
-export type ExportFormat = 'png' | 'jpg' | 'svg' | 'pdf';
+export type ExportFormat = 'png' | 'jpg' | 'jpeg' | 'svg' | 'pdf';
 
 export interface ExportOptions {
   format: ExportFormat;

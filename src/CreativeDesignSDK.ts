@@ -279,7 +279,7 @@ export class CreativeDesignSDK {
     return defaultThemes;
   }
 
-  getTheme(preset: ThemePreset): ColorTheme {
+  getThemePreset(preset: ThemePreset): ColorTheme {
     return getTheme(preset);
   }
 
@@ -531,7 +531,7 @@ export class CreativeDesignSDK {
     if (!this.project || !this.canUndo()) return;
     const action = this.historyManager.undo();
     if (action) {
-      this.project = this.historyManager.applyUndoToProject(this.project);
+      this.project = this.historyManager.applyUndoToProject(this.project, action);
       this.emit('undo', action);
       this.notifyPreview();
     }
@@ -541,7 +541,7 @@ export class CreativeDesignSDK {
     if (!this.project || !this.canRedo()) return;
     const action = this.historyManager.redo();
     if (action) {
-      this.project = this.historyManager.applyRedoToProject(this.project);
+      this.project = this.historyManager.applyRedoToProject(this.project, action);
       this.emit('redo', action);
       this.notifyPreview();
     }

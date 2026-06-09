@@ -132,8 +132,8 @@ export class FlashcardEditor {
       .map(
         (p) => `
         <div class="cd-fl-theme-item" data-id="${p}" style="width:100%;aspect-ratio:1;border-radius:6px;cursor:pointer;border:2px solid transparent;overflow:hidden;display:flex;">
-          <div style="flex:1;background:${this.sdk.getTheme(p as any).primary};"></div>
-          <div style="flex:1;background:${this.sdk.getTheme(p as any).accent};"></div>
+          <div style="flex:1;background:${this.sdk.getThemePreset(p as any).primary};"></div>
+          <div style="flex:1;background:${this.sdk.getThemePreset(p as any).accent};"></div>
         </div>
       `
       )
@@ -216,19 +216,15 @@ export class FlashcardEditor {
     const qc = this.getQuestionCardElement();
     if (!qc) return;
 
-    const baseElement = this.sdk.questionCards.createQuestionCard(
+    const updated = this.sdk.questionCards.changeQuestionType(
+      qc,
       type,
-      qc.questionContent || '新题目',
-      qc.x,
-      qc.y,
-      qc.width,
-      qc.height,
       this.sdk.getTheme() || undefined
     );
 
-    this.sdk.deleteElement(qc.id);
-    this.sdk.addElement(baseElement);
-    this.renderOptions();
+    this.sdk.updateElement(qc.id, updated as any);
+    this.updateFormFromProject();
+    this.sdk.renderPreview(1);
   }
 
   private updateQuestionContent(content: string): void {
