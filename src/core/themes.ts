@@ -1,0 +1,116 @@
+import { ColorTheme, ThemePreset } from '../types';
+
+export const defaultThemes: Record<ThemePreset, ColorTheme> = {
+  default_light: {
+    id: 'default_light',
+    name: '浅色默认',
+    primary: '#3B82F6',
+    secondary: '#60A5FA',
+    accent: '#10B981',
+    background: '#FFFFFF',
+    text: '#1F2937',
+    textSecondary: '#6B7280',
+    border: '#E5E7EB',
+  },
+  default_dark: {
+    id: 'default_dark',
+    name: '深色默认',
+    primary: '#60A5FA',
+    secondary: '#93C5FD',
+    accent: '#34D399',
+    background: '#1F2937',
+    text: '#F9FAFB',
+    textSecondary: '#D1D5DB',
+    border: '#374151',
+  },
+  ocean_blue: {
+    id: 'ocean_blue',
+    name: '海洋蓝',
+    primary: '#0284C7',
+    secondary: '#0EA5E9',
+    accent: '#06B6D4',
+    background: '#F0F9FF',
+    text: '#0C4A6E',
+    textSecondary: '#0369A1',
+    border: '#BAE6FD',
+  },
+  forest_green: {
+    id: 'forest_green',
+    name: '森林绿',
+    primary: '#16A34A',
+    secondary: '#22C55E',
+    accent: '#84CC16',
+    background: '#F0FDF4',
+    text: '#14532D',
+    textSecondary: '#166534',
+    border: '#BBF7D0',
+  },
+  sunset_orange: {
+    id: 'sunset_orange',
+    name: '日落橙',
+    primary: '#EA580C',
+    secondary: '#F97316',
+    accent: '#F59E0B',
+    background: '#FFF7ED',
+    text: '#7C2D12',
+    textSecondary: '#C2410C',
+    border: '#FED7AA',
+  },
+  lavender_purple: {
+    id: 'lavender_purple',
+    name: '薰衣草紫',
+    primary: '#7C3AED',
+    secondary: '#8B5CF6',
+    accent: '#A855F7',
+    background: '#FAF5FF',
+    text: '#4C1D95',
+    textSecondary: '#6D28D9',
+    border: '#E9D5FF',
+  },
+  education_bright: {
+    id: 'education_bright',
+    name: '教育亮色',
+    primary: '#6366F1',
+    secondary: '#F59E0B',
+    accent: '#EF4444',
+    background: '#FEFCE8',
+    text: '#1E1B4B',
+    textSecondary: '#4B5563',
+    border: '#FDE68A',
+  },
+  education_soft: {
+    id: 'education_soft',
+    name: '教育柔色',
+    primary: '#4F46E5',
+    secondary: '#0D9488',
+    accent: '#DB2777',
+    background: '#F8FAFC',
+    text: '#334155',
+    textSecondary: '#64748B',
+    border: '#E2E8F0',
+  },
+  custom: {
+    id: 'custom',
+    name: '自定义',
+    primary: '#000000',
+    secondary: '#333333',
+    accent: '#666666',
+    background: '#FFFFFF',
+    text: '#000000',
+    textSecondary: '#666666',
+    border: '#CCCCCC',
+  },
+};
+
+export const getTheme = (preset: ThemePreset): ColorTheme => {
+  return defaultThemes[preset] || defaultThemes.default_light;
+};
+
+export const createCustomTheme = (colors: Partial<ColorTheme>): ColorTheme => {
+  return {
+    ...defaultThemes.default_light,
+    ...colors,
+    id: 'custom',
+    name: colors.name || '自定义主题',
+  };
+};

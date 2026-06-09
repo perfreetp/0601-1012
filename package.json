@@ -1,0 +1,38 @@
+{
+  "name": "@creative-design/edu-sdk",
+  "version": "1.0.0",
+  "description": "创意设计平台类库/SDK，供在线教育产品内嵌课件封面与练习卡生成能力",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc && rollup -c",
+    "dev": "tsc -w",
+    "test": "jest",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "creative-design",
+    "education",
+    "sdk",
+    "courseware",
+    "cover",
+    "flashcard"
+  ],
+  "author": "Creative Design Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "jest": "^29.5.0",
+    "rollup": "^4.0.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {}
+}
