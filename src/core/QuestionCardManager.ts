@@ -226,13 +226,16 @@ export class QuestionCardManager {
     cloned.questionType = newType;
 
     switch (newType) {
-      case 'true_false':
+      case 'true_false': {
+        const tId = generateId('opt');
+        const fId = generateId('opt');
         cloned.options = [
-          { id: generateId('opt'), label: 'T', content: '正确', isCorrect: false },
-          { id: generateId('opt'), label: 'F', content: '错误', isCorrect: false },
+          { id: tId, label: 'T', content: '正确', isCorrect: true },
+          { id: fId, label: 'F', content: '错误', isCorrect: false },
         ];
-        cloned.correctAnswer = cloned.options[0].id;
+        cloned.correctAnswer = tId;
         break;
+      }
       case 'single_choice':
         if (!cloned.options || cloned.options.length === 0) {
           cloned.options = [

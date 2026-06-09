@@ -7,6 +7,7 @@ import {
   ValidationError,
   ValidationWarning,
   CopyrightTip,
+  QuestionCardElement,
 } from '../types';
 
 export interface MaterialValidationRules {
@@ -127,6 +128,116 @@ export class MaterialValidator {
           message: '建议为图片添加替代文本',
           elementId: element.id,
         });
+      }
+    }
+
+    if (element.type === 'question_card') {
+      const qc = element as QuestionCardElement;
+
+      if (!qc.questionContent || qc.questionContent.trim().length === 0) {
+        errors.push({
+          code: 'QUESTION_CONTENT_EMPTY',
+          message: '题干不能为空',
+          elementId: element.id,
+          severity: 'error',
+        });
+      }
+
+      switch (qc.questionType) {
+        case 'single_choice':
+        case 'multiple_choice':
+          if (!qc.options || qc.options.length < 2) {
+            errors.push({
+              code: 'OPTIONS_NOT_ENOUGH',
+              message: '选择题至少需要2个选项',
+              elementId: element.id,
+              severity: 'error',
+            });
+          } else {
+            const correctCount = qc.options.filter((o) => o.isCorrect).length;
+            if (qc.questionType === 'single_choice' && correctCount !== 1) {
+              errors.push({
+                code: 'SINGLE_CORRECT_REQUIRED',
+                message: '单选题必须且只能设置1个正确答案',
+                elementId: element.id,
+                severity: 'error',
+              });
+            }
+            if (qc.questionType === 'multiple_choice' && correctCount < 1) {
+              errors.push({
+                code: 'MULTIPLE_CORRECT_REQUIRED',
+                message: '多选题至少需要设置1个正确答案',
+                elementId: element.id,
+                severity: 'error',
+              });
+            }
+            const emptyContent = qc.options.some((o) => !o.content || o.content.trim().length === 0);
+            if (emptyContent) {
+              errors.push({
+                code: 'OPTION_CONTENT_EMPTY',
+                message: '存在选项内容为空',
+                elementId: element.id,
+                severity: 'error',
+              });
+            }
+          }
+          break;
+
+        case 'true_false':
+          if (!qc.options || qc.options.length !== 2) {
+            errors.push({
+              code: 'TRUE_FALSE_OPTIONS_INVALID',
+              message: '判断题必须包含"正确"和"错误"两个选项',
+              elementId: element.id,
+              severity: 'error',
+            });
+          } else {
+            const correctCount = qc.options.filter((o) => o.isCorrect).length;
+            if (correctCount !== 1) {
+              errors.push({
+                code: 'TRUE_FALSE_CORRECT_REQUIRED',
+                message: '判断题必须设置1个正确答案',
+                elementId: element.id,
+                severity: 'error',
+              });
+            }
+          }
+          break;
+
+        case 'fill_blank':
+        case 'short_answer':
+          if (!qc.correctAnswer || (qc.correctAnswer as string).trim().length === 0) {
+            errors.push({
+              code: 'ANSWER_TEXT_EMPTY',
+              message: qc.questionType === 'fill_blank' ? '填空题答案不能为空' : '简答题参考答案不能为空',
+              elementId: element.id,
+              severity: 'error',
+            });
+          }
+          break;
+
+        case 'matching':
+          if (!qc.matchingPairs || qc.matchingPairs.length === 0) {
+            errors.push({
+              code: 'MATCHING_PAIRS_EMPTY',
+              message: '匹配题至少需要1组配对项',
+              elementId: element.id,
+              severity: 'error',
+            });
+          } else {
+            const emptyPair = qc.matchingPairs.some(
+              (p) => !p.left || p.left.trim().length === 0 || !p.right || p.right.trim().length === 0
+            );
+            if (emptyPair) {
+              errors.push({
+                code: 'MATCHING_PAIR_ITEM_EMPTY',
+                message: '存在配对项的左栏或右栏内容为空',
+                elementId: element.id,
+                severity: 'error',
+              });
+            }
+          }
+          break;
       }
     }
 

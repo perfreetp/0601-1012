@@ -19,6 +19,7 @@ export class FlashcardEditor {
   private container: HTMLElement;
   private options: FlashcardEditorOptions;
   private editorEl: HTMLElement | null = null;
+  private debounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
   constructor(options: FlashcardEditorOptions) {
     this.options = options;
@@ -27,6 +28,48 @@ export class FlashcardEditor {
 
     if (options.userId) {
       this.sdk.setCurrentUserId(options.userId);
+    }
+  }
+
+  private debounce(
+    key: string,
+    fn: () => void,
+    wait = 500
+  ): void {
+    const existing = this.debounceTimers.get(key);
+    if (existing) clearTimeout(existing);
+    const t = setTimeout(() => {
+      this.debounceTimers.delete(key);
+      fn();
+    }, wait);
+    this.debounceTimers.set(key, t);
+  }
+
+  private scheduleCommit(key: string, commit: () => void): void {
+    this.debounce(key, commit, 500);
+  }
+
+  private flushPendingCommits(): void {
+    this.debounceTimers.forEach((t) => clearTimeout(t));
+    this.debounceTimers.clear();
+    const qc = this.getQuestionCardElement();
+    if (qc) {
+      this.sdk.updateElement(qc.id, {
+        questionContent: qc.questionContent,
+        explanation: qc.explanation,
+        options: qc.options,
+        matchingPairs: qc.matchingPairs,
+        correctAnswer: qc.correctAnswer,
+      } as any);
+    }
+  }
+
+  destroy(): void {
+    this.debounceTimers.forEach((t) => clearTimeout(t));
+    this.debounceTimers.clear();
+    this.sdk.dispose();
+    if (this.editorEl && this.editorEl.parentNode) {
+      this.editorEl.parentNode.removeChild(this.editorEl);
     }
   }
 
@@ -187,11 +230,13 @@ export class FlashcardEditor {
     });
 
     (this.container.querySelector('#cd-fl-undo-btn') as HTMLButtonElement).addEventListener('click', () => {
+      this.flushPendingCommits();
       this.sdk.undo();
       this.updateFormFromProject();
     });
 
     (this.container.querySelector('#cd-fl-redo-btn') as HTMLButtonElement).addEventListener('click', () => {
+      this.flushPendingCommits();
       this.sdk.redo();
       this.updateFormFromProject();
     });
@@ -242,13 +287,21 @@ export class FlashcardEditor {
   private updateQuestionContent(content: string): void {
     const qc = this.getQuestionCardElement();
     if (!qc) return;
-    this.sdk.updateElement(qc.id, { questionContent: content } as any);
+    this.sdk.updateElementSilent(qc.id, { questionContent: content } as any);
+    this.scheduleCommit(`qc_${qc.id}_question`, () => {
+      const latest = this.getQuestionCardElement();
+      if (latest) this.sdk.updateElement(latest.id, { questionContent: latest.questionContent } as any);
+    });
   }
 
   private updateExplanation(explanation: string): void {
     const qc = this.getQuestionCardElement();
     if (!qc) return;
-    this.sdk.updateElement(qc.id, { explanation } as any);
+    this.sdk.updateElementSilent(qc.id, { explanation } as any);
+    this.scheduleCommit(`qc_${qc.id}_explanation`, () => {
+      const latest = this.getQuestionCardElement();
+      if (latest) this.sdk.updateElement(latest.id, { explanation: latest.explanation } as any);
+    });
   }
 
   private addOption(): void {
@@ -279,14 +332,22 @@ export class FlashcardEditor {
     const qc = this.getQuestionCardElement();
     if (!qc) return;
     const updated = this.sdk.questionCards.updateMatchingPair(qc, pairId, { [field]: value });
-    this.sdk.updateElement(qc.id, updated as any);
+    this.sdk.updateElementSilent(qc.id, updated as any);
+    this.scheduleCommit(`qc_${qc.id}_pair_${pairId}_${field}`, () => {
+      const latest = this.getQuestionCardElement();
+      if (latest) this.sdk.updateElement(latest.id, { matchingPairs: latest.matchingPairs } as any);
+    });
   }
 
   private setCorrectAnswerText(text: string): void {
     const qc = this.getQuestionCardElement();
     if (!qc) return;
     const updated = this.sdk.questionCards.setCorrectAnswerText(qc, text);
-    this.sdk.updateElement(qc.id, updated as any);
+    this.sdk.updateElementSilent(qc.id, updated as any);
+    this.scheduleCommit(`qc_${qc.id}_answer`, () => {
+      const latest = this.getQuestionCardElement();
+      if (latest) this.sdk.updateElement(latest.id, { correctAnswer: latest.correctAnswer } as any);
+    });
   }
 
   private removeOption(optionId: string): void {
@@ -301,7 +362,11 @@ export class FlashcardEditor {
     const qc = this.getQuestionCardElement();
     if (!qc) return;
     const updated = this.sdk.questionCards.updateOptionContent(qc, optionId, content);
-    this.sdk.updateElement(qc.id, updated as any);
+    this.sdk.updateElementSilent(qc.id, updated as any);
+    this.scheduleCommit(`qc_${qc.id}_opt_${optionId}`, () => {
+      const latest = this.getQuestionCardElement();
+      if (latest) this.sdk.updateElement(latest.id, { options: latest.options } as any);
+    });
   }
 
   private setCorrectOption(optionId: string, multi: boolean = false): void {
@@ -346,7 +411,7 @@ export class FlashcardEditor {
       .map(
         (opt, idx) => `
         <div class="cd-option-item" data-id="${opt.id}" style="display:flex;align-items:center;gap:6px;padding:6px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;">
-          <input type="${isMulti ? 'checkbox' : 'radio'}" name="cd-correct" ${opt.isCorrect ? 'checked' : ''} data-option-id="${opt.id}" style="cursor:pointer;" ${isTrueFalse ? 'disabled' : ''}/>
+          <input type="${isMulti ? 'checkbox' : 'radio'}" name="cd-correct" ${opt.isCorrect ? 'checked' : ''} data-option-id="${opt.id}" style="cursor:pointer;" />
           <span style="font-weight:600;color:#374151;width:20px;">${String.fromCharCode(65 + idx)}.</span>
           <input type="text" value="${opt.content.replace(/"/g, '&quot;')}" data-option-id="${opt.id}" class="cd-option-input" style="flex:1;padding:4px 8px;border:1px solid #e5e7eb;border-radius:4px;font-size:13px;" ${isTrueFalse ? 'disabled' : ''}/>
           <button class="cd-remove-option" data-option-id="${opt.id}" style="padding:2px 8px;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;border-radius:4px;cursor:pointer;font-size:12px;${isTrueFalse ? 'display:none;' : ''}">×</button>
@@ -483,12 +548,5 @@ export class FlashcardEditor {
 
   getProject(): DesignProject | null {
     return this.sdk.getProject();
-  }
-
-  destroy(): void {
-    this.sdk.dispose();
-    if (this.editorEl) {
-      this.editorEl.remove();
-    }
   }
 }

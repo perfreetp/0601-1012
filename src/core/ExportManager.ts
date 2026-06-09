@@ -7,6 +7,25 @@ import { convertSizeToPx } from './sizes';
 import { PreviewManager } from './PreviewManager';
 
 export class ExportManager {
+  private measureCanvas: HTMLCanvasElement | null = null;
+  private getMeasureCtx(): CanvasRenderingContext2D {
+    if (!this.measureCanvas) {
+      this.measureCanvas = document.createElement('canvas');
+    }
+    return this.measureCanvas.getContext('2d')!;
+  }
+
+  private wrapText(
+    text: string,
+    maxWidth: number,
+    fontSize: number,
+    fontWeight: number | string = 400,
+    fontFamily = 'system-ui, sans-serif'
+  ): string[] {
+    const ctx = this.getMeasureCtx();
+    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+    return this.wrapTextForCanvas(ctx, text, maxWidth);
+  }
   private previewManager: PreviewManager;
 
   constructor(previewManager: PreviewManager) {
@@ -572,6 +591,29 @@ export class ExportManager {
     return svg;
   }
 
+  private renderWrappedTextSvg(
+    x: number,
+    y: number,
+    text: string,
+    fontSize: number,
+    color: string,
+    maxWidth: number,
+    fontWeight: number | string = 400,
+    lineHeightMul = 1.5
+  ): { svg: string; height: number } {
+    const lines = this.wrapText(text || '', maxWidth, fontSize, fontWeight);
+    if (lines.length === 0) lines.push('');
+    const lh = fontSize * lineHeightMul;
+    const tspans = lines
+      .map(
+        (l, i) =>
+          `<tspan x="${x}" dy="${i === 0 ? 0 : lh}">${this.escapeXml(l)}</tspan>`
+      )
+      .join('');
+    const svg = `<text x="${x}" y="${y}" font-size="${fontSize}" font-weight="${fontWeight}" fill="${this.escapeXml(color)}" font-family="system-ui, sans-serif">${tspans}</text>`;
+    return { svg, height: Math.max(1, lines.length) * lh };
+  }
+
   private generateQuestionCardSvg(el: any): string {
     const style = el.style || {};
     const padding = 20;
@@ -581,6 +623,7 @@ export class ExportManager {
     const optFont = style.optionStyle?.fontSize || 16;
     const optColor = style.optionStyle?.color || '#333';
     const highlightColor = style.correctHighlightColor || '#10b981';
+    const contentW = el.width - padding * 2;
 
     let svg = '';
     if (style.backgroundColor) {
@@ -592,48 +635,120 @@ export class ExportManager {
 
     const cx = el.x + padding;
     let cy = el.y + padding;
-    svg += `<text x="${cx}" y="${cy + titleFont}" font-size="${titleFont}" font-weight="600" fill="${this.escapeXml(titleColor)}" font-family="system-ui, sans-serif">${this.escapeXml(el.questionContent || '')}</text>`;
-    cy += titleFont * 1.5 + 8;
+
+    const questionRes = this.renderWrappedTextSvg(
+      cx,
+      cy + titleFont,
+      el.questionContent || '',
+      titleFont,
+      titleColor,
+      contentW,
+      600
+    );
+    svg += questionRes.svg;
+    cy += questionRes.height + 8;
 
     const qt = el.questionType;
     if (qt === 'single_choice' || qt === 'multiple_choice' || qt === 'true_false') {
+      const labelW = 28;
       (el.options || []).forEach((opt: any) => {
+        const textMaxW = contentW - labelW - 30;
+        const textRes = this.renderWrappedTextSvg(
+          cx + labelW,
+          cy + optFont + 4,
+          opt.content || '',
+          optFont,
+          optColor,
+          textMaxW
+        );
+        const lineCount = this.wrapText(opt.content || '', textMaxW, optFont, 400).length || 1;
+        const rowH = Math.max(lineCount, 1) * optFont * 1.5 + 10;
+        const boxH = optFont * 1.8 + 4;
+        const actualBoxH = Math.max(boxH, rowH - 6);
+
         if (opt.isCorrect) {
-          svg += `<rect x="${cx - 4}" y="${cy - 2}" width="${el.width - padding * 2 + 8}" height="${optFont * 1.8 + 4}" rx="6" fill="${highlightColor}25" stroke="${highlightColor}" stroke-width="1"/>`;
+          svg += `<rect x="${cx - 4}" y="${cy - 2}" width="${contentW + 8}" height="${actualBoxH}" rx="6" fill="${highlightColor}25" stroke="${highlightColor}" stroke-width="1"/>`;
         }
         svg += `<text x="${cx}" y="${cy + optFont + 4}" font-size="${optFont}" font-weight="600" fill="${opt.isCorrect ? highlightColor : this.escapeXml(optColor)}" font-family="system-ui, sans-serif">${this.escapeXml(opt.label + '.')}</text>`;
-        const labelW = 28;
-        svg += `<text x="${cx + labelW}" y="${cy + optFont + 4}" font-size="${optFont}" fill="${this.escapeXml(optColor)}" font-family="system-ui, sans-serif">${this.escapeXml(opt.content || '')}</text>`;
+        svg += textRes.svg;
         if (opt.isCorrect) {
-          svg += `<text x="${cx + el.width - padding * 2 - 20}" y="${cy + optFont + 4}" font-size="${optFont}" font-weight="700" fill="${highlightColor}" font-family="system-ui, sans-serif">✓</text>`;
+          svg += `<text x="${cx + contentW - 18}" y="${cy + optFont + 4}" font-size="${optFont}" font-weight="700" fill="${highlightColor}" font-family="system-ui, sans-serif">✓</text>`;
         }
-        cy += optFont * 1.5 + 10;
+        cy += rowH;
       });
     } else if (qt === 'fill_blank' || qt === 'short_answer') {
       const label = qt === 'fill_blank' ? '答案：' : '参考答案：';
-      svg += `<text x="${cx}" y="${cy + optFont + 4}" font-size="${optFont}" font-weight="600" fill="${highlightColor}" font-family="system-ui, sans-serif">${this.escapeXml(label)}</text>`;
-      svg += `<text x="${cx + 60}" y="${cy + optFont + 4}" font-size="${optFont}" fill="${this.escapeXml(optColor)}" font-family="system-ui, sans-serif">${this.escapeXml((el.correctAnswer as string) || '____________')}</text>`;
-      cy += optFont * 1.5 + 10;
+      const labelW = 60;
+      const labelRes = this.renderWrappedTextSvg(cx, cy + optFont + 4, label, optFont, highlightColor, contentW, 600);
+      svg += labelRes.svg;
+      const answer = (el.correctAnswer as string) || '____________';
+      const answerRes = this.renderWrappedTextSvg(
+        cx + labelW,
+        cy + optFont + 4,
+        answer,
+        optFont,
+        optColor,
+        contentW - labelW
+      );
+      svg += answerRes.svg;
+      cy += Math.max(labelRes.height, answerRes.height) + 10;
     } else if (qt === 'matching') {
-      const pairs = el.matchingPairs || [];
       const colGap = 30;
-      const colW = (el.width - padding * 2 - colGap) / 2;
-      svg += `<text x="${cx}" y="${cy + optFont + 4}" font-size="${optFont}" font-weight="600" fill="${highlightColor}" font-family="system-ui, sans-serif">左栏</text>`;
-      svg += `<text x="${cx + colW + colGap}" y="${cy + optFont + 4}" font-size="${optFont}" font-weight="600" fill="${highlightColor}" font-family="system-ui, sans-serif">右栏</text>`;
-      cy += optFont * 1.5 + 4;
-      pairs.forEach((p: any, idx: number) => {
+      const colW = (contentW - colGap) / 2;
+      const leftColX = cx;
+      const rightColX = cx + colW + colGap;
+      const labelHdr1 = this.renderWrappedTextSvg(leftColX, cy + optFont + 4, '左栏', optFont, highlightColor, colW, 600);
+      const labelHdr2 = this.renderWrappedTextSvg(rightColX, cy + optFont + 4, '右栏', optFont, highlightColor, colW, 600);
+      svg += labelHdr1.svg;
+      svg += labelHdr2.svg;
+      cy += Math.max(labelHdr1.height, labelHdr2.height) + 4;
+
+      (el.matchingPairs || []).forEach((p: any, idx: number) => {
         const lbl = `${String.fromCharCode(65 + idx)}.`;
+        const leftMaxW = colW - 28;
+        const leftLines = this.wrapText(p.left || '', leftMaxW, optFont);
+        const rightLines = this.wrapText(p.right || '', colW, optFont);
+        const maxLines = Math.max(leftLines.length, rightLines.length, 1);
+        const rowH = maxLines * optFont * 1.4 + 10;
+
         svg += `<text x="${cx}" y="${cy + optFont + 4}" font-size="${optFont}" fill="${this.escapeXml(optColor)}" font-family="system-ui, sans-serif">${this.escapeXml(lbl)}</text>`;
-        svg += `<text x="${cx + 28}" y="${cy + optFont + 4}" font-size="${optFont}" fill="${this.escapeXml(optColor)}" font-family="system-ui, sans-serif">${this.escapeXml(p.left || '')}</text>`;
-        svg += `<text x="${cx + colW + colGap}" y="${cy + optFont + 4}" font-size="${optFont}" fill="${this.escapeXml(optColor)}" font-family="system-ui, sans-serif">${this.escapeXml(p.right || '')}</text>`;
-        cy += optFont * 1.4 + 10;
+        const leftRes = this.renderWrappedTextSvg(
+          cx + 28,
+          cy + optFont + 4,
+          p.left || '',
+          optFont,
+          optColor,
+          leftMaxW
+        );
+        svg += leftRes.svg;
+        const rightRes = this.renderWrappedTextSvg(
+          rightColX,
+          cy + optFont + 4,
+          p.right || '',
+          optFont,
+          optColor,
+          colW
+        );
+        svg += rightRes.svg;
+        cy += rowH;
       });
     }
 
     if (el.explanation) {
       cy += 8;
-      svg += `<text x="${cx}" y="${cy + optFont}" font-size="${optFont - 2}" font-weight="500" fill="#6b7280" font-family="system-ui, sans-serif">解析：</text>`;
-      svg += `<text x="${cx + 48}" y="${cy + optFont}" font-size="${optFont - 2}" fill="#6b7280" font-family="system-ui, sans-serif">${this.escapeXml(el.explanation)}</text>`;
+      const label = '解析：';
+      const labelW = 48;
+      const labelRes = this.renderWrappedTextSvg(cx, cy + optFont, label, optFont - 2, '#6b7280', contentW, 500);
+      const expRes = this.renderWrappedTextSvg(
+        cx + labelW,
+        cy + optFont,
+        el.explanation,
+        optFont - 2,
+        '#6b7280',
+        contentW - labelW
+      );
+      svg += labelRes.svg;
+      svg += expRes.svg;
     }
 
     return svg;

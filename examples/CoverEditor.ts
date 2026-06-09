@@ -20,6 +20,7 @@ export class CoverEditor {
   private container: HTMLElement;
   private options: CoverEditorOptions;
   private editorEl: HTMLElement | null = null;
+  private debounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
   constructor(options: CoverEditorOptions) {
     this.options = options;
@@ -28,6 +29,38 @@ export class CoverEditor {
 
     if (options.userId) {
       this.sdk.setCurrentUserId(options.userId);
+    }
+  }
+
+  private debounce(key: string, fn: () => void, wait = 500): void {
+    const existing = this.debounceTimers.get(key);
+    if (existing) clearTimeout(existing);
+    const t = setTimeout(() => {
+      this.debounceTimers.delete(key);
+      fn();
+    }, wait);
+    this.debounceTimers.set(key, t);
+  }
+
+  private scheduleCommit(key: string, commit: () => void): void {
+    this.debounce(key, commit, 500);
+  }
+
+  private flushPendingCommits(): void {
+    this.debounceTimers.forEach((t) => clearTimeout(t));
+    this.debounceTimers.clear();
+    const textElements = this.sdk.getElements().filter((e) => e.type === 'text') as TextElement[];
+    textElements.forEach((el) => {
+      this.sdk.updateElement(el.id, { content: el.content } as any);
+    });
+  }
+
+  destroy(): void {
+    this.debounceTimers.forEach((t) => clearTimeout(t));
+    this.debounceTimers.clear();
+    this.sdk.dispose();
+    if (this.editorEl && this.editorEl.parentNode) {
+      this.editorEl.parentNode.removeChild(this.editorEl);
     }
   }
 
@@ -171,11 +204,13 @@ export class CoverEditor {
     });
 
     (this.container.querySelector('#cd-undo-btn') as HTMLButtonElement).addEventListener('click', () => {
+      this.flushPendingCommits();
       this.sdk.undo();
       this.updateFormFromProject();
     });
 
     (this.container.querySelector('#cd-redo-btn') as HTMLButtonElement).addEventListener('click', () => {
+      this.flushPendingCommits();
       this.sdk.redo();
       this.updateFormFromProject();
     });
@@ -216,9 +251,12 @@ export class CoverEditor {
 
   private updateTextElement(index: number, content: string): void {
     const elements = this.sdk.getElements().filter((e) => e.type === 'text') as TextElement[];
-    if (elements[index]) {
-      this.sdk.updateElement(elements[index].id, { content } as any);
-    }
+    if (!elements[index]) return;
+    this.sdk.updateElementSilent(elements[index].id, { content } as any);
+    this.scheduleCommit(`text_${elements[index].id}`, () => {
+      const latest = this.sdk.getElement(elements[index].id);
+      if (latest) this.sdk.updateElement(latest.id, { content: (latest as TextElement).content } as any);
+    });
   }
 
   private updateFormFromProject(): void {
@@ -252,12 +290,5 @@ export class CoverEditor {
 
   getProject(): DesignProject | null {
     return this.sdk.getProject();
-  }
-
-  destroy(): void {
-    this.sdk.dispose();
-    if (this.editorEl) {
-      this.editorEl.remove();
-    }
   }
 }
