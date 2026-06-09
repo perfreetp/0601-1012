@@ -124,6 +124,12 @@ export interface QuestionOption {
   isCorrect?: boolean;
 }
 
+export interface MatchingPair {
+  id: string;
+  left: string;
+  right: string;
+}
+
 export interface QuestionCardStyle {
   backgroundColor?: string;
   borderColor?: string;
@@ -139,6 +145,7 @@ export interface QuestionCardElement extends BaseElement {
   questionType: QuestionType;
   questionContent: string;
   options?: QuestionOption[];
+  matchingPairs?: MatchingPair[];
   correctAnswer?: string | string[];
   explanation?: string;
   style: QuestionCardStyle;

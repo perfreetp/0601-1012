@@ -368,19 +368,14 @@ export class CreativeDesignSDK {
   moveElement(id: string, x: number, y: number): void {
     const el = this.getElement(id);
     if (!el) return;
-    this.historyManager.recordElementMove(this.currentUserId, id, { x: el.x, y: el.y }, { x, y });
+    if (el.x === x && el.y === y) return;
     this.updateElement(id, { x, y });
   }
 
   resizeElement(id: string, width: number, height: number): void {
     const el = this.getElement(id);
     if (!el) return;
-    this.historyManager.recordElementResize(
-      this.currentUserId,
-      id,
-      { width: el.width, height: el.height },
-      { width, height }
-    );
+    if (el.width === width && el.height === height) return;
     this.updateElement(id, { width, height });
   }
 

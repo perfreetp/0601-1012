@@ -304,26 +304,170 @@ export class ExportManager {
 
   private drawQuestionCard(ctx: CanvasRenderingContext2D, el: any): void {
     const style = el.style || {};
+    const padding = 20;
+    const radius = style.borderRadius || 0;
+    const cardX = el.x;
+    const cardY = el.y;
+    const cardW = el.width;
+    const cardH = el.height;
 
     if (style.backgroundColor) {
       ctx.fillStyle = style.backgroundColor;
-      const r = style.borderRadius || 0;
-      if (r > 0) {
-        this.roundRect(ctx, el.x, el.y, el.width, el.height, r);
+      if (radius > 0) {
+        this.roundRect(ctx, cardX, cardY, cardW, cardH, radius);
       } else {
-        ctx.fillRect(el.x, el.y, el.width, el.height);
+        ctx.fillRect(cardX, cardY, cardW, cardH);
       }
     }
 
     if (style.borderColor) {
       ctx.strokeStyle = style.borderColor;
       ctx.lineWidth = style.borderWidth || 2;
-      if (style.borderRadius) {
-        this.roundRect(ctx, el.x, el.y, el.width, el.height, style.borderRadius);
+      if (radius > 0) {
+        this.roundRect(ctx, cardX, cardY, cardW, cardH, radius);
         ctx.stroke();
       } else {
-        ctx.strokeRect(el.x, el.y, el.width, el.height);
+        ctx.strokeRect(cardX, cardY, cardW, cardH);
       }
+    }
+
+    const contentX = cardX + padding;
+    const contentW = cardW - padding * 2;
+    let cursorY = cardY + padding;
+
+    const titleFontSize = style.titleStyle?.fontSize || 20;
+    const titleFontWeight = style.titleStyle?.fontWeight || 600;
+    const titleColor = style.titleStyle?.color || '#333';
+    const optFontSize = style.optionStyle?.fontSize || 16;
+    const optColor = style.optionStyle?.color || '#333';
+    const highlightColor = style.correctHighlightColor || '#10b981';
+
+    ctx.font = `${titleFontWeight} ${titleFontSize}px system-ui, sans-serif`;
+    ctx.fillStyle = titleColor;
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+
+    const questionLines = this.wrapTextForCanvas(ctx, el.questionContent || '', contentW);
+    questionLines.forEach((line) => {
+      ctx.fillText(line, contentX, cursorY);
+      cursorY += titleFontSize * 1.5;
+    });
+
+    cursorY += 8;
+
+    ctx.font = `400 ${optFontSize}px system-ui, sans-serif`;
+    ctx.fillStyle = optColor;
+
+    if (el.questionType === 'single_choice' || el.questionType === 'multiple_choice' || el.questionType === 'true_false') {
+      const options = el.options || [];
+      for (const opt of options) {
+        const isCorrect = opt.isCorrect;
+
+        if (isCorrect) {
+          ctx.save();
+          ctx.fillStyle = highlightColor + '25';
+          this.roundRect(ctx, contentX - 4, cursorY - 2, contentW + 8, optFontSize * 1.8 + 4, 6);
+          ctx.fill();
+          ctx.strokeStyle = highlightColor;
+          ctx.lineWidth = 1;
+          this.roundRect(ctx, contentX - 4, cursorY - 2, contentW + 8, optFontSize * 1.8 + 4, 6);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        ctx.save();
+        ctx.fillStyle = isCorrect ? highlightColor : optColor;
+        ctx.font = `600 ${optFontSize}px system-ui, sans-serif`;
+        ctx.fillText(`${opt.label}.`, contentX, cursorY + 4);
+        ctx.restore();
+
+        ctx.font = `400 ${optFontSize}px system-ui, sans-serif`;
+        ctx.fillStyle = optColor;
+        const labelWidth = ctx.measureText(`${opt.label}. `).width + 6;
+        const textLines = this.wrapTextForCanvas(ctx, opt.content || '', contentW - labelWidth - 30);
+        textLines.forEach((line, i) => {
+          ctx.fillText(line, contentX + labelWidth, cursorY + 4 + i * optFontSize * 1.5);
+        });
+
+        if (isCorrect) {
+          ctx.save();
+          ctx.fillStyle = highlightColor;
+          ctx.font = `700 ${optFontSize}px system-ui, sans-serif`;
+          const check = '✓';
+          const checkWidth = ctx.measureText(check).width;
+          ctx.fillText(check, contentX + contentW - checkWidth, cursorY + 4);
+          ctx.restore();
+        }
+
+        cursorY += Math.max(textLines.length, 1) * optFontSize * 1.5 + 10;
+      }
+    } else if (el.questionType === 'fill_blank' || el.questionType === 'short_answer') {
+      const label = el.questionType === 'fill_blank' ? '答案：' : '参考答案：';
+      const answer = (el.correctAnswer as string) || '____________';
+      ctx.save();
+      ctx.fillStyle = highlightColor;
+      ctx.font = `600 ${optFontSize}px system-ui, sans-serif`;
+      ctx.fillText(label, contentX, cursorY + 4);
+      const labelWidth = ctx.measureText(label).width;
+      ctx.restore();
+
+      ctx.fillStyle = optColor;
+      ctx.font = `400 ${optFontSize}px system-ui, sans-serif`;
+      const textLines = this.wrapTextForCanvas(ctx, answer, contentW - labelWidth);
+      textLines.forEach((line, i) => {
+        ctx.fillText(line, contentX + labelWidth, cursorY + 4 + i * optFontSize * 1.5);
+      });
+      cursorY += Math.max(textLines.length, 1) * optFontSize * 1.5 + 10;
+    } else if (el.questionType === 'matching') {
+      const pairs = el.matchingPairs || [];
+      const colGap = 30;
+      const colW = (contentW - colGap) / 2;
+
+      ctx.save();
+      ctx.fillStyle = highlightColor;
+      ctx.font = `600 ${optFontSize}px system-ui, sans-serif`;
+      ctx.fillText('左栏', contentX, cursorY + 4);
+      ctx.fillText('右栏', contentX + colW + colGap, cursorY + 4);
+      ctx.restore();
+      cursorY += optFontSize * 1.5 + 4;
+
+      pairs.forEach((p: any, idx: number) => {
+        ctx.fillStyle = optColor;
+        ctx.font = `400 ${optFontSize}px system-ui, sans-serif`;
+        const labelL = `${String.fromCharCode(65 + idx)}.`;
+        ctx.fillText(labelL, contentX, cursorY + 4);
+        const labelLW = ctx.measureText(labelL).width;
+
+        const leftLines = this.wrapTextForCanvas(ctx, p.left || '', colW - labelLW);
+        leftLines.forEach((line, i) => {
+          ctx.fillText(line, contentX + labelLW, cursorY + 4 + i * optFontSize * 1.4);
+        });
+
+        const rightLines = this.wrapTextForCanvas(ctx, p.right || '', colW - 20);
+        rightLines.forEach((line, i) => {
+          ctx.fillText(line, contentX + colW + colGap, cursorY + 4 + i * optFontSize * 1.4);
+        });
+
+        cursorY += Math.max(leftLines.length, rightLines.length, 1) * optFontSize * 1.4 + 10;
+      });
+    }
+
+    if (el.explanation) {
+      cursorY += 8;
+      ctx.save();
+      ctx.fillStyle = '#6b7280';
+      ctx.font = `500 ${optFontSize - 2}px system-ui, sans-serif`;
+      const label = '解析：';
+      ctx.fillText(label, contentX, cursorY + 4);
+      const labelW = ctx.measureText(label).width;
+      ctx.restore();
+
+      ctx.fillStyle = '#6b7280';
+      ctx.font = `400 ${optFontSize - 2}px system-ui, sans-serif`;
+      const lines = this.wrapTextForCanvas(ctx, el.explanation, contentW - labelW);
+      lines.forEach((line, i) => {
+        ctx.fillText(line, contentX + labelW, cursorY + 4 + i * (optFontSize - 2) * 1.5);
+      });
     }
   }
 
@@ -419,10 +563,79 @@ export class ExportManager {
       } else if (el.type === 'image') {
         const img = el as any;
         svg += `<image x="${img.x}" y="${img.y}" width="${img.width}" height="${img.height}" href="${this.escapeXml(img.src)}" preserveAspectRatio="xMidYMid slice"/>`;
+      } else if (el.type === 'question_card') {
+        svg += this.generateQuestionCardSvg(el as any);
       }
     });
 
     svg += '</svg>';
+    return svg;
+  }
+
+  private generateQuestionCardSvg(el: any): string {
+    const style = el.style || {};
+    const padding = 20;
+    const radius = style.borderRadius || 0;
+    const titleFont = style.titleStyle?.fontSize || 20;
+    const titleColor = style.titleStyle?.color || '#333';
+    const optFont = style.optionStyle?.fontSize || 16;
+    const optColor = style.optionStyle?.color || '#333';
+    const highlightColor = style.correctHighlightColor || '#10b981';
+
+    let svg = '';
+    if (style.backgroundColor) {
+      svg += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" rx="${radius}" fill="${this.escapeXml(style.backgroundColor)}"/>`;
+    }
+    if (style.borderColor) {
+      svg += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" rx="${radius}" fill="none" stroke="${this.escapeXml(style.borderColor)}" stroke-width="${style.borderWidth || 2}"/>`;
+    }
+
+    const cx = el.x + padding;
+    let cy = el.y + padding;
+    svg += `<text x="${cx}" y="${cy + titleFont}" font-size="${titleFont}" font-weight="600" fill="${this.escapeXml(titleColor)}" font-family="system-ui, sans-serif">${this.escapeXml(el.questionContent || '')}</text>`;
+    cy += titleFont * 1.5 + 8;
+
+    const qt = el.questionType;
+    if (qt === 'single_choice' || qt === 'multiple_choice' || qt === 'true_false') {
+      (el.options || []).forEach((opt: any) => {
+        if (opt.isCorrect) {
+          svg += `<rect x="${cx - 4}" y="${cy - 2}" width="${el.width - padding * 2 + 8}" height="${optFont * 1.8 + 4}" rx="6" fill="${highlightColor}25" stroke="${highlightColor}" stroke-width="1"/>`;
+        }
+        svg += `<text x="${cx}" y="${cy + optFont + 4}" font-size="${optFont}" font-weight="600" fill="${opt.isCorrect ? highlightColor : this.escapeXml(optColor)}" font-family="system-ui, sans-serif">${this.escapeXml(opt.label + '.')}</text>`;
+        const labelW = 28;
+        svg += `<text x="${cx + labelW}" y="${cy + optFont + 4}" font-size="${optFont}" fill="${this.escapeXml(optColor)}" font-family="system-ui, sans-serif">${this.escapeXml(opt.content || '')}</text>`;
+        if (opt.isCorrect) {
+          svg += `<text x="${cx + el.width - padding * 2 - 20}" y="${cy + optFont + 4}" font-size="${optFont}" font-weight="700" fill="${highlightColor}" font-family="system-ui, sans-serif">✓</text>`;
+        }
+        cy += optFont * 1.5 + 10;
+      });
+    } else if (qt === 'fill_blank' || qt === 'short_answer') {
+      const label = qt === 'fill_blank' ? '答案：' : '参考答案：';
+      svg += `<text x="${cx}" y="${cy + optFont + 4}" font-size="${optFont}" font-weight="600" fill="${highlightColor}" font-family="system-ui, sans-serif">${this.escapeXml(label)}</text>`;
+      svg += `<text x="${cx + 60}" y="${cy + optFont + 4}" font-size="${optFont}" fill="${this.escapeXml(optColor)}" font-family="system-ui, sans-serif">${this.escapeXml((el.correctAnswer as string) || '____________')}</text>`;
+      cy += optFont * 1.5 + 10;
+    } else if (qt === 'matching') {
+      const pairs = el.matchingPairs || [];
+      const colGap = 30;
+      const colW = (el.width - padding * 2 - colGap) / 2;
+      svg += `<text x="${cx}" y="${cy + optFont + 4}" font-size="${optFont}" font-weight="600" fill="${highlightColor}" font-family="system-ui, sans-serif">左栏</text>`;
+      svg += `<text x="${cx + colW + colGap}" y="${cy + optFont + 4}" font-size="${optFont}" font-weight="600" fill="${highlightColor}" font-family="system-ui, sans-serif">右栏</text>`;
+      cy += optFont * 1.5 + 4;
+      pairs.forEach((p: any, idx: number) => {
+        const lbl = `${String.fromCharCode(65 + idx)}.`;
+        svg += `<text x="${cx}" y="${cy + optFont + 4}" font-size="${optFont}" fill="${this.escapeXml(optColor)}" font-family="system-ui, sans-serif">${this.escapeXml(lbl)}</text>`;
+        svg += `<text x="${cx + 28}" y="${cy + optFont + 4}" font-size="${optFont}" fill="${this.escapeXml(optColor)}" font-family="system-ui, sans-serif">${this.escapeXml(p.left || '')}</text>`;
+        svg += `<text x="${cx + colW + colGap}" y="${cy + optFont + 4}" font-size="${optFont}" fill="${this.escapeXml(optColor)}" font-family="system-ui, sans-serif">${this.escapeXml(p.right || '')}</text>`;
+        cy += optFont * 1.4 + 10;
+      });
+    }
+
+    if (el.explanation) {
+      cy += 8;
+      svg += `<text x="${cx}" y="${cy + optFont}" font-size="${optFont - 2}" font-weight="500" fill="#6b7280" font-family="system-ui, sans-serif">解析：</text>`;
+      svg += `<text x="${cx + 48}" y="${cy + optFont}" font-size="${optFont - 2}" fill="#6b7280" font-family="system-ui, sans-serif">${this.escapeXml(el.explanation)}</text>`;
+    }
+
     return svg;
   }
 

@@ -71,6 +71,14 @@ export class FlashcardEditor {
             <div id="cd-options-list" style="display:flex;flex-direction:column;gap:6px;"></div>
           </div>
 
+          <div id="cd-answer-section" class="cd-section" style="margin-bottom:24px;">
+            <div style="font-size:14px;font-weight:600;margin-bottom:8px;color:#374151;display:flex;justify-content:space-between;align-items:center;">
+              <span id="cd-answer-title">答案</span>
+              <button id="cd-add-pair-btn" style="padding:4px 10px;border:none;background:#3b82f6;color:#fff;border-radius:4px;cursor:pointer;font-size:12px;display:none;">+ 添加配对</button>
+            </div>
+            <div id="cd-answer-area"></div>
+          </div>
+
           <div class="cd-section" style="margin-bottom:24px;">
             <div style="font-size:14px;font-weight:600;margin-bottom:8px;color:#374151;">答案解析</div>
             <textarea id="cd-explanation-input" placeholder="输入答案解析（选填）" rows="2" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;resize:vertical;box-sizing:border-box;"></textarea>
@@ -174,6 +182,10 @@ export class FlashcardEditor {
       this.addOption();
     });
 
+    (this.container.querySelector('#cd-add-pair-btn') as HTMLButtonElement).addEventListener('click', () => {
+      this.addMatchingPair();
+    });
+
     (this.container.querySelector('#cd-fl-undo-btn') as HTMLButtonElement).addEventListener('click', () => {
       this.sdk.undo();
       this.updateFormFromProject();
@@ -247,6 +259,36 @@ export class FlashcardEditor {
     this.renderOptions();
   }
 
+  private addMatchingPair(): void {
+    const qc = this.getQuestionCardElement();
+    if (!qc) return;
+    const updated = this.sdk.questionCards.addMatchingPair(qc, '新左项', '新右项');
+    this.sdk.updateElement(qc.id, updated as any);
+    this.renderAnswer();
+  }
+
+  private removeMatchingPair(pairId: string): void {
+    const qc = this.getQuestionCardElement();
+    if (!qc) return;
+    const updated = this.sdk.questionCards.removeMatchingPair(qc, pairId);
+    this.sdk.updateElement(qc.id, updated as any);
+    this.renderAnswer();
+  }
+
+  private updateMatchingPair(pairId: string, field: 'left' | 'right', value: string): void {
+    const qc = this.getQuestionCardElement();
+    if (!qc) return;
+    const updated = this.sdk.questionCards.updateMatchingPair(qc, pairId, { [field]: value });
+    this.sdk.updateElement(qc.id, updated as any);
+  }
+
+  private setCorrectAnswerText(text: string): void {
+    const qc = this.getQuestionCardElement();
+    if (!qc) return;
+    const updated = this.sdk.questionCards.setCorrectAnswerText(qc, text);
+    this.sdk.updateElement(qc.id, updated as any);
+  }
+
   private removeOption(optionId: string): void {
     const qc = this.getQuestionCardElement();
     if (!qc) return;
@@ -283,21 +325,31 @@ export class FlashcardEditor {
   private renderOptions(): void {
     const qc = this.getQuestionCardElement();
     const list = this.container.querySelector('#cd-options-list') as HTMLElement;
-    if (!qc || !qc.options) {
-      list.innerHTML = '<div style="font-size:12px;color:#999;padding:8px;">此题型无需选项</div>';
+    const addBtn = this.container.querySelector('#cd-add-option-btn') as HTMLButtonElement;
+    const optionsSection = list.parentElement?.parentElement as HTMLElement;
+
+    const needsOptions = qc && (qc.questionType === 'single_choice' || qc.questionType === 'multiple_choice' || qc.questionType === 'true_false');
+
+    if (optionsSection) {
+      optionsSection.style.display = needsOptions ? '' : 'none';
+    }
+    if (!needsOptions || !qc || !qc.options) {
+      if (list) list.innerHTML = '';
       return;
     }
 
     const isMulti = qc.questionType === 'multiple_choice';
+    const isTrueFalse = qc.questionType === 'true_false';
+    addBtn.style.display = isTrueFalse ? 'none' : '';
 
     list.innerHTML = qc.options
       .map(
         (opt, idx) => `
         <div class="cd-option-item" data-id="${opt.id}" style="display:flex;align-items:center;gap:6px;padding:6px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;">
-          <input type="${isMulti ? 'checkbox' : 'radio'}" name="cd-correct" ${opt.isCorrect ? 'checked' : ''} data-option-id="${opt.id}" style="cursor:pointer;" />
+          <input type="${isMulti ? 'checkbox' : 'radio'}" name="cd-correct" ${opt.isCorrect ? 'checked' : ''} data-option-id="${opt.id}" style="cursor:pointer;" ${isTrueFalse ? 'disabled' : ''}/>
           <span style="font-weight:600;color:#374151;width:20px;">${String.fromCharCode(65 + idx)}.</span>
-          <input type="text" value="${opt.content.replace(/"/g, '&quot;')}" data-option-id="${opt.id}" class="cd-option-input" style="flex:1;padding:4px 8px;border:1px solid #e5e7eb;border-radius:4px;font-size:13px;" />
-          <button class="cd-remove-option" data-option-id="${opt.id}" style="padding:2px 8px;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;border-radius:4px;cursor:pointer;font-size:12px;">×</button>
+          <input type="text" value="${opt.content.replace(/"/g, '&quot;')}" data-option-id="${opt.id}" class="cd-option-input" style="flex:1;padding:4px 8px;border:1px solid #e5e7eb;border-radius:4px;font-size:13px;" ${isTrueFalse ? 'disabled' : ''}/>
+          <button class="cd-remove-option" data-option-id="${opt.id}" style="padding:2px 8px;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;border-radius:4px;cursor:pointer;font-size:12px;${isTrueFalse ? 'display:none;' : ''}">×</button>
         </div>
       `
       )
@@ -325,6 +377,72 @@ export class FlashcardEditor {
     });
   }
 
+  private renderAnswer(): void {
+    const qc = this.getQuestionCardElement();
+    const area = this.container.querySelector('#cd-answer-area') as HTMLElement;
+    const addPairBtn = this.container.querySelector('#cd-add-pair-btn') as HTMLButtonElement;
+    const titleEl = this.container.querySelector('#cd-answer-title') as HTMLElement;
+    const section = this.container.querySelector('#cd-answer-section') as HTMLElement;
+    if (!area || !qc) return;
+
+    if (qc.questionType === 'fill_blank' || qc.questionType === 'short_answer') {
+      section.style.display = '';
+      titleEl.textContent = qc.questionType === 'fill_blank' ? '正确答案' : '参考答案';
+      addPairBtn.style.display = 'none';
+      const currentValue = (qc.correctAnswer as string) || '';
+      const existingInput = area.querySelector('#cd-correct-answer-input') as HTMLTextAreaElement;
+      if (existingInput && existingInput.value === currentValue) return;
+      area.innerHTML = `
+        <textarea id="cd-correct-answer-input" placeholder="请输入${qc.questionType === 'fill_blank' ? '正确答案' : '参考答案'}" rows="2" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;resize:vertical;box-sizing:border-box;"></textarea>
+      `;
+      const input = area.querySelector('#cd-correct-answer-input') as HTMLTextAreaElement;
+      input.value = currentValue;
+      input.addEventListener('input', (e) => {
+        this.setCorrectAnswerText((e.target as HTMLTextAreaElement).value);
+      });
+    } else if (qc.questionType === 'matching') {
+      section.style.display = '';
+      titleEl.textContent = '匹配项';
+      addPairBtn.style.display = '';
+      const pairs = qc.matchingPairs || [];
+      area.innerHTML = pairs
+        .map(
+          (p) => `
+          <div class="cd-pair-item" data-id="${p.id}" style="display:flex;align-items:center;gap:6px;padding:6px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;margin-bottom:6px;">
+            <input type="text" value="${p.left.replace(/"/g, '&quot;')}" class="cd-pair-left" data-id="${p.id}" placeholder="左项" style="flex:1;padding:4px 8px;border:1px solid #e5e7eb;border-radius:4px;font-size:13px;" />
+            <span style="color:#9ca3af;font-size:12px;">↔</span>
+            <input type="text" value="${p.right.replace(/"/g, '&quot;')}" class="cd-pair-right" data-id="${p.id}" placeholder="右项" style="flex:1;padding:4px 8px;border:1px solid #e5e7eb;border-radius:4px;font-size:13px;" />
+            <button class="cd-remove-pair" data-id="${p.id}" style="padding:2px 8px;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;border-radius:4px;cursor:pointer;font-size:12px;">×</button>
+          </div>
+        `
+        )
+        .join('');
+
+      area.querySelectorAll('.cd-pair-left').forEach((el) => {
+        el.addEventListener('input', (e) => {
+          const id = (e.target as HTMLInputElement).dataset.id as string;
+          this.updateMatchingPair(id, 'left', (e.target as HTMLInputElement).value);
+        });
+      });
+      area.querySelectorAll('.cd-pair-right').forEach((el) => {
+        el.addEventListener('input', (e) => {
+          const id = (e.target as HTMLInputElement).dataset.id as string;
+          this.updateMatchingPair(id, 'right', (e.target as HTMLInputElement).value);
+        });
+      });
+      area.querySelectorAll('.cd-remove-pair').forEach((el) => {
+        el.addEventListener('click', (e) => {
+          const id = (e.currentTarget as HTMLElement).dataset.id as string;
+          this.removeMatchingPair(id);
+        });
+      });
+    } else {
+      section.style.display = 'none';
+      addPairBtn.style.display = 'none';
+      area.innerHTML = '';
+    }
+  }
+
   private updateFormFromProject(): void {
     const project = this.sdk.getProject();
     if (!project) return;
@@ -341,7 +459,21 @@ export class FlashcardEditor {
         explanationInput.value = qc.explanation || '';
       }
 
+      this.container.querySelectorAll('.cd-qtype-btn').forEach((btn) => {
+        const el = btn as HTMLElement;
+        if (el.dataset.type === qc.questionType) {
+          el.style.backgroundColor = '#3b82f6';
+          el.style.color = '#fff';
+          el.style.borderColor = '#3b82f6';
+        } else {
+          el.style.backgroundColor = '#fff';
+          el.style.color = '#000';
+          el.style.borderColor = '#d1d5db';
+        }
+      });
+
       this.renderOptions();
+      this.renderAnswer();
     }
   }
 

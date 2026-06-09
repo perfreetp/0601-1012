@@ -233,52 +233,157 @@ export class PreviewManager {
     el.style.display = 'flex';
     el.style.flexDirection = 'column';
     el.style.boxSizing = 'border-box';
+    el.style.gap = '10px';
+    el.style.overflow = 'hidden';
 
     const questionEl = document.createElement('div');
     questionEl.style.fontSize = `${element.style.titleStyle?.fontSize || 20}px`;
     questionEl.style.fontWeight = String(element.style.titleStyle?.fontWeight || 600);
     questionEl.style.color = element.style.titleStyle?.color || '#333';
-    questionEl.style.marginBottom = '16px';
+    questionEl.style.lineHeight = '1.5';
+    questionEl.style.wordBreak = 'break-word';
     questionEl.textContent = element.questionContent;
     el.appendChild(questionEl);
 
-    if (element.options) {
-      const optionsContainer = document.createElement('div');
-      optionsContainer.style.display = 'flex';
-      optionsContainer.style.flexDirection = 'column';
-      optionsContainer.style.gap = '10px';
+    const qt = element.questionType;
+    const highlight = element.style.correctHighlightColor || '#10b981';
+    const optFont = element.style.optionStyle?.fontSize || 16;
+    const optColor = element.style.optionStyle?.color || '#333';
 
-      element.options.forEach((opt) => {
-        const optEl = document.createElement('div');
-        optEl.style.display = 'flex';
-        optEl.style.alignItems = 'center';
-        optEl.style.gap = '10px';
-        optEl.style.padding = '10px 14px';
-        optEl.style.borderRadius = '8px';
-        optEl.style.border = '1px solid #e5e7eb';
+    if (qt === 'single_choice' || qt === 'multiple_choice' || qt === 'true_false') {
+      if (element.options) {
+        const optionsContainer = document.createElement('div');
+        optionsContainer.style.display = 'flex';
+        optionsContainer.style.flexDirection = 'column';
+        optionsContainer.style.gap = '10px';
 
-        if (opt.isCorrect && element.style.correctHighlightColor) {
-          optEl.style.backgroundColor = element.style.correctHighlightColor + '20';
-          optEl.style.borderColor = element.style.correctHighlightColor;
-        }
+        element.options.forEach((opt) => {
+          const optEl = document.createElement('div');
+          optEl.style.display = 'flex';
+          optEl.style.alignItems = 'center';
+          optEl.style.gap = '10px';
+          optEl.style.padding = '10px 14px';
+          optEl.style.borderRadius = '8px';
+          optEl.style.border = '1px solid #e5e7eb';
+          optEl.style.wordBreak = 'break-word';
 
-        const labelEl = document.createElement('span');
-        labelEl.style.fontWeight = '600';
-        labelEl.style.fontSize = `${element.style.optionStyle?.fontSize || 16}px`;
-        labelEl.style.color = element.style.optionStyle?.color || '#666';
-        labelEl.textContent = `${opt.label}.`;
+          if (opt.isCorrect) {
+            optEl.style.backgroundColor = highlight + '25';
+            optEl.style.borderColor = highlight;
+          }
 
-        const contentEl = document.createElement('span');
-        contentEl.style.fontSize = `${element.style.optionStyle?.fontSize || 16}px`;
-        contentEl.style.color = element.style.optionStyle?.color || '#333';
-        contentEl.textContent = opt.content;
+          const labelEl = document.createElement('span');
+          labelEl.style.fontWeight = '600';
+          labelEl.style.fontSize = `${optFont}px`;
+          labelEl.style.color = opt.isCorrect ? highlight : (element.style.optionStyle?.color || '#666');
+          labelEl.style.minWidth = '24px';
+          labelEl.textContent = `${opt.label}.`;
 
-        optEl.appendChild(labelEl);
-        optEl.appendChild(contentEl);
-        optionsContainer.appendChild(optEl);
+          const contentEl = document.createElement('span');
+          contentEl.style.flex = '1';
+          contentEl.style.fontSize = `${optFont}px`;
+          contentEl.style.color = optColor;
+          contentEl.textContent = opt.content;
+
+          optEl.appendChild(labelEl);
+          optEl.appendChild(contentEl);
+
+          if (opt.isCorrect) {
+            const checkEl = document.createElement('span');
+            checkEl.style.color = highlight;
+            checkEl.style.fontWeight = '700';
+            checkEl.style.fontSize = `${optFont}px`;
+            checkEl.textContent = '✓';
+            optEl.appendChild(checkEl);
+          }
+
+          optionsContainer.appendChild(optEl);
+        });
+
+        el.appendChild(optionsContainer);
+      }
+    } else if (qt === 'fill_blank' || qt === 'short_answer') {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.flexWrap = 'wrap';
+      row.style.alignItems = 'center';
+      row.style.gap = '6px';
+
+      const labelEl = document.createElement('span');
+      labelEl.style.fontWeight = '600';
+      labelEl.style.fontSize = `${optFont}px`;
+      labelEl.style.color = highlight;
+      labelEl.textContent = qt === 'fill_blank' ? '答案：' : '参考答案：';
+
+      const valueEl = document.createElement('span');
+      valueEl.style.fontSize = `${optFont}px`;
+      valueEl.style.color = optColor;
+      valueEl.style.wordBreak = 'break-word';
+      valueEl.textContent = (element.correctAnswer as string) || '____________';
+
+      row.appendChild(labelEl);
+      row.appendChild(valueEl);
+      el.appendChild(row);
+    } else if (qt === 'matching') {
+      const titleRow = document.createElement('div');
+      titleRow.style.display = 'flex';
+      titleRow.style.gap = '30px';
+      titleRow.style.fontSize = `${optFont}px`;
+      titleRow.style.fontWeight = '600';
+      titleRow.style.color = highlight;
+      const t1 = document.createElement('span');
+      t1.style.flex = '1';
+      t1.textContent = '左栏';
+      const t2 = document.createElement('span');
+      t2.style.flex = '1';
+      t2.textContent = '右栏';
+      titleRow.appendChild(t1);
+      titleRow.appendChild(t2);
+      el.appendChild(titleRow);
+
+      (element.matchingPairs || []).forEach((p, idx) => {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.gap = '30px';
+        row.style.alignItems = 'flex-start';
+
+        const leftBox = document.createElement('div');
+        leftBox.style.flex = '1';
+        leftBox.style.fontSize = `${optFont}px`;
+        leftBox.style.color = optColor;
+        leftBox.style.wordBreak = 'break-word';
+        leftBox.textContent = `${String.fromCharCode(65 + idx)}. ${p.left}`;
+
+        const rightBox = document.createElement('div');
+        rightBox.style.flex = '1';
+        rightBox.style.fontSize = `${optFont}px`;
+        rightBox.style.color = optColor;
+        rightBox.style.wordBreak = 'break-word';
+        rightBox.textContent = p.right;
+
+        row.appendChild(leftBox);
+        row.appendChild(rightBox);
+        el.appendChild(row);
       });
+    }
 
-      el.appendChild(optionsContainer);
+    if (element.explanation) {
+      const explanationEl = document.createElement('div');
+      explanationEl.style.marginTop = '4px';
+      explanationEl.style.paddingTop = '8px';
+      explanationEl.style.borderTop = '1px dashed #e5e7eb';
+      explanationEl.style.fontSize = `${optFont - 2}px`;
+      explanationEl.style.color = '#6b7280';
+      explanationEl.style.lineHeight = '1.5';
+      explanationEl.style.wordBreak = 'break-word';
+
+      const expLabel = document.createElement('span');
+      expLabel.style.fontWeight = '500';
+      expLabel.textContent = '解析：';
+      explanationEl.appendChild(expLabel);
+      explanationEl.appendChild(document.createTextNode(element.explanation));
+
+      el.appendChild(explanationEl);
     }
 
     return el;

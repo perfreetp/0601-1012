@@ -4,10 +4,39 @@ import {
   QuestionOption,
   QuestionCardStyle,
   ColorTheme,
+  MatchingPair,
 } from '../types';
 import { generateElementId, generateId, deepClone } from '../utils';
 
 export class QuestionCardManager {
+  createMatching(
+    question: string,
+    pairs: Array<{ left: string; right: string }>,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    theme?: ColorTheme
+  ): QuestionCardElement {
+    const matchingPairs: MatchingPair[] = pairs.map((p) => ({
+      id: generateId('pair'),
+      left: p.left,
+      right: p.right,
+    }));
+
+    return this.createQuestionCard(
+      'matching',
+      question,
+      [],
+      '',
+      x,
+      y,
+      width,
+      height,
+      theme,
+      matchingPairs
+    );
+  }
   createSingleChoice(
     question: string,
     options: string[],
@@ -152,7 +181,8 @@ export class QuestionCardManager {
     y: number,
     width: number,
     height: number,
-    theme?: ColorTheme
+    theme?: ColorTheme,
+    matchingPairs?: MatchingPair[]
   ): QuestionCardElement {
     const style: QuestionCardStyle = {};
     if (theme) {
@@ -180,6 +210,7 @@ export class QuestionCardManager {
       questionType,
       questionContent,
       options,
+      matchingPairs,
       correctAnswer,
       style,
       zIndex: 1,
@@ -236,6 +267,11 @@ export class QuestionCardManager {
       case 'matching':
         cloned.options = [];
         cloned.correctAnswer = '';
+        cloned.matchingPairs = [
+          { id: generateId('pair'), left: '左项1', right: '右项1' },
+          { id: generateId('pair'), left: '左项2', right: '右项2' },
+          { id: generateId('pair'), left: '左项3', right: '右项3' },
+        ];
         break;
     }
 
@@ -336,6 +372,36 @@ export class QuestionCardManager {
     return {
       correct: element.correctAnswer === userAnswer,
       correctAnswer: element.correctAnswer as string,
+    };
+  }
+
+  setCorrectAnswerText(element: QuestionCardElement, text: string): QuestionCardElement {
+    return { ...deepClone(element), correctAnswer: text };
+  }
+
+  addMatchingPair(element: QuestionCardElement, left = '左项', right = '右项'): QuestionCardElement {
+    const pairs = [...(element.matchingPairs || [])];
+    pairs.push({ id: generateId('pair'), left, right });
+    return { ...deepClone(element), matchingPairs: pairs };
+  }
+
+  removeMatchingPair(element: QuestionCardElement, pairId: string): QuestionCardElement {
+    return {
+      ...deepClone(element),
+      matchingPairs: (element.matchingPairs || []).filter((p) => p.id !== pairId),
+    };
+  }
+
+  updateMatchingPair(
+    element: QuestionCardElement,
+    pairId: string,
+    changes: Partial<MatchingPair>
+  ): QuestionCardElement {
+    return {
+      ...deepClone(element),
+      matchingPairs: (element.matchingPairs || []).map((p) =>
+        p.id === pairId ? { ...p, ...changes } : p
+      ),
     };
   }
 }
